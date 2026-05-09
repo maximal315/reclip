@@ -2,48 +2,42 @@
 set -e
 cd "$(dirname "$0")"
 
-# Check prerequisites
 missing=""
 
-if ! command -v python3 &> /dev/null; then
-    missing="$missing python3"
+if ! command -v node >/dev/null 2>&1; then
+    missing="$missing node"
 fi
 
-if ! command -v yt-dlp &> /dev/null; then
-    missing="$missing yt-dlp"
+if ! command -v npm >/dev/null 2>&1; then
+    missing="$missing npm"
 fi
 
-if ! command -v ffmpeg &> /dev/null; then
+if ! command -v ffmpeg >/dev/null 2>&1; then
     missing="$missing ffmpeg"
 fi
 
 if [ -n "$missing" ]; then
     echo "Missing required tools:$missing"
     echo ""
-    if command -v brew &> /dev/null; then
-        echo "Install with:  brew install$missing"
-    elif command -v apt &> /dev/null; then
-        echo "Install with:  sudo apt install$missing"
+    if command -v brew >/dev/null 2>&1; then
+        echo "Install with: brew install$missing"
+    elif command -v apt >/dev/null 2>&1; then
+        echo "Install with: sudo apt install$missing"
     else
         echo "Please install:$missing"
     fi
     exit 1
 fi
 
-# Set up venv and install Python deps
-if [ ! -d "venv" ]; then
-    echo "Setting up virtual environment..."
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install -q flask yt-dlp
-else
-    source venv/bin/activate
+if [ ! -d "node_modules" ]; then
+    echo "Installing npm dependencies..."
+    npm install
 fi
 
-PORT="${PORT:-8899}"
-export PORT
+echo ""
+echo "Starting RECLIP downloader stack..."
+echo "Web UI: http://localhost:3000"
+echo "API:    http://localhost:4000"
+echo ""
 
-echo ""
-echo "  ReClip is running at http://localhost:$PORT"
-echo ""
-python3 app.py
+npm run dev

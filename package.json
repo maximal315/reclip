@@ -1,0 +1,19 @@
+{
+  "name": "reclip-downloader",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w @reclip/api\" \"npm run dev -w @reclip/worker\" \"npm run dev -w @reclip/web\"",
+    "build": "npm run build -ws --if-present",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
+  }
+}

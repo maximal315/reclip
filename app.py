@@ -75,7 +75,9 @@ def run_download(job_id, url, format_choice, format_id):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return jsonify({
+        "message": "Legacy Flask UI disabled. Use the Next.js UI at http://localhost:3000."
+    }), 410
 
 
 @app.route("/api/info", methods=["POST"])
