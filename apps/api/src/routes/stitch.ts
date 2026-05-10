@@ -7,7 +7,8 @@ import { enqueue } from '../queue/producer.js';
 
 const schema = z.object({
   urls: z.array(z.string().url()).min(1),
-  audioUrl: z.string().url().nullable().optional()
+  audioUrl: z.string().url().nullable().optional(),
+  ctaUrl: z.string().url().optional()
 });
 
 export const stitchRouter = Router();
@@ -72,54 +73,101 @@ stitchRouter.post('/', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
     }
 
-    // Step 3: Generate public URLs for downloaded videos
+    // Step 3: Generate downloadable URLs and handle CTA stitching
     const downloadableUrls = [];
-    for (const job of downloadJobs) {
-      const completedJob = db.jobs.get(job.id);
-      if (completedJob?.status === 'done') {
-        // Generate URL for each downloaded video in the job
-        for (let i = 0; i < completedJob.videoIds.length; i++) {
-          const fileUrl = `${config.API_BASE_URL}/downloads/file/${job.id}/${i}`;
-          downloadableUrls.push(fileUrl);
+    const ctaDownloadableUrl = parsed.data.ctaUrl;
+
+    // If CTA is provided, we need to stitch each short individually with CTA
+    if (parsed.data.ctaUrl) {
+      // For each downloaded job, create individual stitch requests
+      const stitchedBlobs = [];
+      
+      for (const job of downloadJobs) {
+        const completedJob = db.jobs.get(job.id);
+        if (completedJob?.status === 'done') {
+          // Generate URL for the downloaded short
+          const shortUrl = `${config.API_BASE_URL}/downloads/file/${job.id}/${0}`;
+          
+          // Call stitch API for this short + CTA
+          const stitchPayload = {
+            urls: [shortUrl, parsed.data.ctaUrl],
+            audioUrl: parsed.data.audioUrl
+          };
+
+          const stitchResponse = await fetch(config.FFMPEG_API_URL, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify(stitchPayload)
+          });
+
+          if (!stitchResponse.ok) {
+            const errText = await stitchResponse.text().catch(() => '');
+            return res.status(stitchResponse.status).json({ error: `Stitch failed for video ${job.id}: ${stitchResponse.status} ${errText}` });
+          }
+
+          const stitchedBuffer = Buffer.from(await stitchResponse.arrayBuffer());
+          stitchedBlobs.push(stitchedBuffer);
         }
       }
-    }
 
-    // Add any non-YouTube URLs (like CTA videos) directly
-    for (const url of parsed.data.urls) {
-      if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
-        downloadableUrls.push(url);
+      // Return multiple stitched videos as a JSON response with base64 encoded videos
+      const stitchedVideos = stitchedBlobs.map((buffer, index) => ({
+        filename: `stitched-short-${index + 1}.mp4`,
+        data: buffer.toString('base64'),
+        contentType: 'video/mp4'
+      }));
+
+      return res.json({ videos: stitchedVideos });
+    } else {
+      // No CTA - just return downloadable URLs for regular stitching
+      for (const job of downloadJobs) {
+        const completedJob = db.jobs.get(job.id);
+        if (completedJob?.status === 'done') {
+          for (let i = 0; i < completedJob.videoIds.length; i++) {
+            const fileUrl = `${config.API_BASE_URL}/downloads/file/${job.id}/${i}`;
+            downloadableUrls.push(fileUrl);
+          }
+        }
       }
+
+      // Add any non-YouTube URLs directly
+      for (const url of parsed.data.urls) {
+        if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+          downloadableUrls.push(url);
+        }
+      }
+
+      // Step 4: Send downloadable URLs to stitch API
+      const headers: Record<string, string> = {
+        'content-type': 'application/json'
+      };
+      if (config.FFMPEG_API_KEY) {
+        headers.authorization = `Bearer ${config.FFMPEG_API_KEY}`;
+      }
+
+      const stitchPayload = {
+        urls: downloadableUrls,
+        audioUrl: parsed.data.audioUrl
+      };
+
+      const response = await fetch(config.FFMPEG_API_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(stitchPayload)
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        return res.status(response.status).json({ error: `Stitch failed: ${response.status} ${errText}` });
+      }
+
+      const stitchedBuffer = Buffer.from(await response.arrayBuffer());
+      res.setHeader('content-type', response.headers.get('content-type') || 'video/mp4');
+      res.setHeader('content-disposition', 'attachment; filename="stitched.mp4"');
+      return res.status(200).send(stitchedBuffer);
     }
-
-    // Step 4: Send downloadable URLs to stitch API
-    const headers: Record<string, string> = {
-      'content-type': 'application/json'
-    };
-    if (config.FFMPEG_API_KEY) {
-      headers.authorization = `Bearer ${config.FFMPEG_API_KEY}`;
-    }
-
-    const stitchPayload = {
-      urls: downloadableUrls,
-      audioUrl: parsed.data.audioUrl
-    };
-
-    const response = await fetch(config.FFMPEG_API_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(stitchPayload)
-    });
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      return res.status(response.status).json({ error: `Stitch failed: ${response.status} ${errText}` });
-    }
-
-    const stitchedBuffer = Buffer.from(await response.arrayBuffer());
-    res.setHeader('content-type', response.headers.get('content-type') || 'video/mp4');
-    res.setHeader('content-disposition', 'attachment; filename="stitched.mp4"');
-    return res.status(200).send(stitchedBuffer);
   } catch (error) {
     console.error('Stitch API unavailable', error);
     return res.status(502).json({ error: 'Stitch API unavailable' });

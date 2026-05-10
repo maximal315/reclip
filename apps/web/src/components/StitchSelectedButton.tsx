@@ -14,23 +14,68 @@ export function StitchSelectedButton({ selectedUrls, ctaUrl }: { selectedUrls: s
     setError('');
     setStatus('Stitching selected shorts to CTA...');
     try {
-      const blob = await apiBlob('/stitch', {
-        method: 'POST',
-        body: JSON.stringify({
-          urls: stitchUrls,
-          audioUrl: audioUrl.trim() ? audioUrl.trim() : null
-        })
-      });
+      if (ctaUrl) {
+        // When CTA is provided, expect multiple videos back
+        const response = await fetch('/api/stitch', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            urls: selectedUrls,
+            ctaUrl: ctaUrl,
+            audioUrl: audioUrl.trim() ? audioUrl.trim() : null
+          })
+        });
 
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `stitched-${Date.now()}.mp4`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.URL.revokeObjectURL(url);
-      setStatus('Stitched video downloaded.');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Stitching failed');
+        }
+
+        const data = await response.json();
+        
+        // Download each stitched video
+        data.videos.forEach((video: any, index: number) => {
+          const byteCharacters = atob(video.data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: video.contentType });
+          
+          const url = window.URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = video.filename;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          window.URL.revokeObjectURL(url);
+        });
+        
+        setStatus(`Downloaded ${data.videos.length} stitched videos.`);
+      } else {
+        // No CTA - download single stitched video
+        const blob = await apiBlob('/stitch', {
+          method: 'POST',
+          body: JSON.stringify({
+            urls: selectedUrls,
+            audioUrl: audioUrl.trim() ? audioUrl.trim() : null
+          })
+        });
+
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `stitched-${Date.now()}.mp4`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.URL.revokeObjectURL(url);
+        setStatus('Stitched video downloaded.');
+      }
     } catch (e) {
       setStatus('');
       setError(e instanceof Error ? e.message : 'Failed to stitch videos');
