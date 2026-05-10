@@ -33,7 +33,15 @@ stitchRouter.post('/', async (req, res) => {
         // Find the video ID in our database
         const video = Array.from(db.videos.values()).find(v => v.sourceUrl === url);
         if (!video) {
-          return res.status(400).json({ error: `Video not found in database: ${url}` });
+          // Debug: show what videos are in the database
+          const allVideos = Array.from(db.videos.values()).map(v => ({ id: v.id, sourceUrl: v.sourceUrl }));
+          console.log('Available videos in DB:', allVideos);
+          console.log('Looking for URL:', url);
+          return res.status(400).json({
+            error: `Video not found in database: ${url}`,
+            availableVideos: allVideos.length,
+            searchedUrl: url
+          });
         }
 
         // Create download job
