@@ -29,7 +29,16 @@ channelsRouter.post('/', async (req, res) => {
   };
 
   db.channels.set(channel.id, channel);
-  const videos = await discoverVideos(channel);
+  let videos;
+  try {
+    videos = await discoverVideos(channel);
+  } catch (error) {
+    db.channels.delete(channel.id);
+    return res.status(502).json({
+      error: error instanceof Error ? error.message : 'Failed to discover channel videos'
+    });
+  }
+
   videos.forEach((v) => db.videos.set(v.id, v));
 
   return res.status(201).json({ channel, videosCount: videos.length });

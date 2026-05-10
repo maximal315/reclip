@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import type { DownloadJob, Video } from '@reclip/shared';
 
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000';
+
 function runFfmpeg(input: string, output: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn('ffmpeg', ['-y', '-i', input, '-c', 'copy', output]);
@@ -16,7 +18,7 @@ function runFfmpeg(input: string, output: string): Promise<void> {
 }
 
 export async function processDownloadJob(job: DownloadJob, videos: Video[]): Promise<DownloadJob> {
-  const next = { ...job, status: 'processing' as const, updatedAt: new Date().toISOString() };
+  const next: DownloadJob = { ...job, status: 'processing', updatedAt: new Date().toISOString() };
   const outputs: string[] = [];
 
   for (let i = 0; i < videos.length; i += 1) {
@@ -36,7 +38,7 @@ export async function processDownloadJob(job: DownloadJob, videos: Video[]): Pro
   }
 
   next.status = 'done';
-  next.outputUrls = outputs.map((_, i) => `${config.API_BASE_URL}/downloads/file/${job.id}/${i + 1}`);
+  next.outputUrls = outputs.map((_, i) => `${API_BASE_URL}/downloads/file/${job.id}/${i + 1}`);
   next.updatedAt = new Date().toISOString();
   return next;
 }

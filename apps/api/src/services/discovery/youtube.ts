@@ -51,7 +51,11 @@ async function fetchPlaylistEntries(url: string): Promise<YtDlpEntry[]> {
     ({ stdout } = await execFileAsync('yt-dlp', args));
   } catch (error) {
     // Fallback for environments where yt-dlp binary is not in PATH.
-    ({ stdout } = await execFileAsync('python3', ['-m', 'yt_dlp', ...args]));
+    try {
+      ({ stdout } = await execFileAsync('python3', ['-m', 'yt_dlp', ...args]));
+    } catch {
+      throw new Error('YouTube discovery needs yt-dlp installed in the API runtime.');
+    }
   }
 
   const payload = JSON.parse(stdout) as { entries?: YtDlpEntry[] };
@@ -110,6 +114,6 @@ export async function fetchYouTubeVideos(channelId: string, handle: string, limi
     return Array.from(byId.values()).slice(0, Math.max(1, limit));
   } catch (error) {
     console.error('Failed to fetch YouTube videos/shorts via yt-dlp', error);
-    return [];
+    throw error instanceof Error ? error : new Error('Failed to fetch YouTube videos.');
   }
 }

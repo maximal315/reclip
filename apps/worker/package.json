@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@reclip/shared": "0.1.0"
+    "@reclip/shared": "0.1.0",
+    "@types/node": "^22.7.4"
   },
   "devDependencies": {
     "tsx": "^4.19.1"

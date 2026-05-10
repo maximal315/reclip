@@ -10,7 +10,11 @@ import { simpleRateLimit } from './lib/limits.js';
 import { startQueueProcessor } from './queue/processor.js';
 
 const app = express();
-app.use(cors({ origin: config.WEB_ORIGIN }));
+const webOrigins = config.WEB_ORIGIN.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({ origin: webOrigins.length > 1 ? webOrigins : webOrigins[0] }));
 app.use(express.json());
 app.use(simpleRateLimit(120));
 

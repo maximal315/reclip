@@ -33,7 +33,7 @@ const schema = z.object({
   NODE_ENV: z.string().default('development'),
   PORT: z.coerce.number().default(4000),
   WEB_ORIGIN: z.string().default('http://localhost:3000'),
-  API_BASE_URL: z.preprocess((val) => normalizeUrl(val), z.string().url()).default('http://localhost:3001'),
+  API_BASE_URL: z.preprocess((val) => normalizeUrl(val), z.string().url()).default('http://localhost:4000'),
   CTA_TITLE: z.string().default('Create with RECLIP'),
   CTA_SUBTITLE: z.string().default('Turn clips into stitched stories.'),
   CTA_VIDEO_URL: z.string().url().optional(),

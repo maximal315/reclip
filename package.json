@@ -13,12 +13,14 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w @reclip/api\" \"npm run dev -w @reclip/worker\" \"npm run dev -w @reclip/web\"",
-    "build": "npm run build -ws --if-present",
+    "build": "npm run build -w @reclip/shared && npm run build -w @reclip/api && npm run build -w @reclip/worker && npm run build -w @reclip/web",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "typescript": "^5.6.2"
   },
   "devDependencies": {
     "concurrently": "^9.0.1",
-    "typescript": "^5.6.2",
     "vitest": "^2.1.1"
   }
 }
