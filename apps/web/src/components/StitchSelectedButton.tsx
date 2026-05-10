@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { api } from '../lib/api';
+import { api, apiBlob } from '../lib/api';
 
 export function StitchSelectedButton({ selectedUrls, ctaUrl }: { selectedUrls: string[]; ctaUrl?: string | null }) {
   const [audioUrl, setAudioUrl] = useState('');
