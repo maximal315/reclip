@@ -61,7 +61,8 @@ stitchRouter.post('/', async (req, res) => {
     for (const { job } of downloadJobs) {
       const completedJob = db.jobs.get(job.id);
       if (completedJob?.status === 'done') {
-        const fileUrl = `${config.API_BASE_URL}/downloads/file/${job.id}/0`;
+        const baseUrl = config.API_BASE_URL.replace(/\/$/, '');
+        const fileUrl = `${baseUrl}/downloads/file/${job.id}/0`;
         downloadableUrls.push(fileUrl);
       }
     }
