@@ -11,6 +11,41 @@ const schema = z.object({
   ctaUrl: z.string().url().optional()
 });
 
+function getYouTubeVideoId(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+
+    if (hostname === 'youtu.be') {
+      return parsed.pathname.slice(1).split(/[/?#]/)[0] || null;
+    }
+
+    if (!hostname.endsWith('youtube.com')) {
+      return null;
+    }
+
+    const v = parsed.searchParams.get('v');
+    if (v) {
+      if (v.startsWith('http://') || v.startsWith('https://')) {
+        return getYouTubeVideoId(v);
+      }
+      return v;
+    }
+
+    if (parsed.pathname.startsWith('/shorts/')) {
+      return parsed.pathname.split('/shorts/')[1]?.split('/')[0] || null;
+    }
+
+    if (parsed.pathname.startsWith('/v/')) {
+      return parsed.pathname.split('/v/')[1]?.split('/')[0] || null;
+    }
+
+    return parsed.pathname.split('/').filter(Boolean).pop() || null;
+  } catch {
+    return null;
+  }
+}
+
 export const stitchRouter = Router();
 
 stitchRouter.post('/', async (req, res) => {
@@ -31,6 +66,31 @@ stitchRouter.post('/', async (req, res) => {
     const downloadJobs = [];
     for (const url of urls) {
       if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        const requestedVideoId = getYouTubeVideoId(url);
+        const normalizedRequestedUrl = requestedVideoId ? `https://www.youtube.com/watch?v=${requestedVideoId}` : url;
+
+        const video = Array.from(db.videos.values()).find((v) => {
+          const storedVideoId = getYouTubeVideoId(v.sourceUrl);
+          if (storedVideoId) {
+            return storedVideoId === requestedVideoId;
+          }
+          return v.sourceUrl === normalizedRequestedUrl;
+        }) || (requestedVideoId ? db.videos.get(`yt_${requestedVideoId}`) : undefined);
+
+        if (!video) {
+          const allVideos = Array.from(db.videos.values()).map(v => ({ id: v.id, sourceUrl: v.sourceUrl }));
+          console.log('Available videos in DB:', allVideos);
+          console.log('Looking for URL:', url);
+          console.log('Requested YouTube ID:', requestedVideoId);
+          return res.status(400).json({
+            error: `Video not found in database: ${url}`,
+            searchedUrl: url,
+            requestedVideoId,
+            availableVideos: allVideos.length
+          });
+        }
+
+        // Create download job
         const job = {
           id: makeId(),
           type: 'single' as const,

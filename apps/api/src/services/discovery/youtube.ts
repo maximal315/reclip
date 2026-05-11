@@ -33,31 +33,44 @@ function normalizeYouTubeInput(handleOrUrl: string): string {
   return `https://www.youtube.com/@${cleanHandle}`;
 }
 
-function normalizeYouTubeUrl(url: string): string {
+export function normalizeYouTubeUrl(url: string): string {
   try {
     const parsed = new URL(url);
-    if (parsed.hostname !== 'www.youtube.com') {
-      return url; // Not a YouTube URL, return as-is
+    const hostname = parsed.hostname.toLowerCase();
+
+    if (hostname === 'youtu.be') {
+      const id = parsed.pathname.slice(1).split(/[/?#]/)[0] || '';
+      return id ? `https://www.youtube.com/watch?v=${id}` : url;
     }
 
-    // Extract video ID from various YouTube URL formats
-    let videoId = '';
+    if (!hostname.endsWith('youtube.com')) {
+      return url;
+    }
 
     if (parsed.pathname.startsWith('/watch')) {
-      videoId = parsed.searchParams.get('v') || '';
-    } else if (parsed.pathname.startsWith('/shorts/')) {
-      videoId = parsed.pathname.split('/shorts/')[1]?.split('/')[0] || '';
-    } else if (parsed.pathname.startsWith('/v/')) {
-      videoId = parsed.pathname.split('/v/')[1]?.split('/')[0] || '';
+      const vParam = parsed.searchParams.get('v') || '';
+      if (vParam.startsWith('http://') || vParam.startsWith('https://')) {
+        return normalizeYouTubeUrl(vParam);
+      }
+      if (vParam) {
+        return `https://www.youtube.com/watch?v=${vParam}`;
+      }
     }
 
-    if (videoId) {
-      return `https://www.youtube.com/watch?v=${videoId}`;
+    if (parsed.pathname.startsWith('/shorts/')) {
+      const id = parsed.pathname.split('/shorts/')[1]?.split('/')[0] || '';
+      return id ? `https://www.youtube.com/watch?v=${id}` : url;
     }
 
-    return url; // Couldn't extract video ID, return original
+    if (parsed.pathname.startsWith('/v/')) {
+      const id = parsed.pathname.split('/v/')[1]?.split('/')[0] || '';
+      return id ? `https://www.youtube.com/watch?v=${id}` : url;
+    }
+
+    const fallbackId = parsed.pathname.split('/').filter(Boolean).pop() || '';
+    return fallbackId ? `https://www.youtube.com/watch?v=${fallbackId}` : url;
   } catch {
-    return url; // Invalid URL, return as-is
+    return url;
   }
 }
 

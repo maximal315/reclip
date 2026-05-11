@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { fetchYouTubeVideos } from '../../apps/api/src/services/discovery/youtube.js';
+import { fetchYouTubeVideos, normalizeYouTubeUrl } from '../../apps/api/src/services/discovery/youtube.js';
 import { fetchTikTokVideos } from '../../apps/api/src/services/discovery/tiktok.js';
 
 describe('discovery adapters', () => {
@@ -8,6 +8,11 @@ describe('discovery adapters', () => {
     expect(videos).toHaveLength(3);
     expect(videos[0].platform).toBe('youtube');
     expect(videos[0].sourceUrl).toContain('youtube.com');
+  });
+
+  test('normalizes malformed watch URL values from yt-dlp', () => {
+    const sourceUrl = normalizeYouTubeUrl('https://www.youtube.com/watch?v=https://www.youtube.com/shorts/WROMyJAJmp4');
+    expect(sourceUrl).toBe('https://www.youtube.com/watch?v=WROMyJAJmp4');
   });
 
   test('normalizes tiktok videos', async () => {
