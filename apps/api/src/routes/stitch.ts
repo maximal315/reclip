@@ -19,9 +19,10 @@ function downloadViaYtDlp(url: string, outputPath: string): Promise<void> {
       '-f', 'best[ext=mp4]',
       '-o', outputPath,
       '--socket-timeout', '30',
-      '--retries', '3',
-      '--fragment-retries', '3',
-      '--http-headers', 'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      '--retries', 'infinite',
+      '--fragment-retries', 'infinite',
+      '--sleep-interval', '2',
+      '--max-sleep-interval', '5',
       url
     ];
     
