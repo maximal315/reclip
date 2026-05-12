@@ -15,21 +15,39 @@ const schema = z.object({
 
 function downloadViaYtDlp(url: string, outputPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn('yt-dlp', [
-      '-f', 'best[ext=mp4]',
-      '-o', outputPath,
-      url
-    ]);
+    const args = ['-f', 'best[ext=mp4]', '-o', outputPath, url];
+    
+    // Try yt-dlp binary first
+    let process = spawn('yt-dlp', args);
+    let binaryFailed = false;
 
-    ffmpeg.on('exit', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`yt-dlp exited with code ${code}`));
-      }
+    process.on('error', () => {
+      binaryFailed = true;
+      // Fallback to python3 -m yt_dlp
+      process = spawn('python3', ['-m', 'yt_dlp', ...args]);
+      
+      process.on('exit', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`yt-dlp exited with code ${code}`));
+        }
+      });
+      
+      process.on('error', (err) => {
+        reject(new Error(`Failed to run yt-dlp: ${err.message}`));
+      });
     });
 
-    ffmpeg.on('error', reject);
+    if (!binaryFailed) {
+      process.on('exit', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`yt-dlp exited with code ${code}`));
+        }
+      });
+    }
   });
 }
 
