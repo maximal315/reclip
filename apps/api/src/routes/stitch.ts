@@ -11,9 +11,10 @@ const schema = z.object({
   urls: z.array(z.string().url()).min(1),
   audioUrl: z.string().url().nullable().optional(),
   ctaUrl: z.string().url().optional()
+  cookies: z.string().optional()
 });
 
-function downloadViaYtDlp(url: string, outputPath: string): Promise<void> {
+function downloadViaYtDlp(url: string, outputPath: string, cookiesPath?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const args = [
       '-f', 'best[ext=mp4]',
@@ -23,6 +24,7 @@ function downloadViaYtDlp(url: string, outputPath: string): Promise<void> {
       '--fragment-retries', 'infinite',
       '--sleep-interval', '2',
       '--max-sleep-interval', '5',
+      ...(cookiesPath ? ['--cookies', cookiesPath] : []),
       url
     ];
     
