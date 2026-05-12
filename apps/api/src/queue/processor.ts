@@ -1,5 +1,6 @@
 import { db } from '../lib/db.js';
 import { dequeue } from './producer.js';
+import { config } from '../lib/config.js';
 
 const downloadedVideoIds = new Set<string>();
 
@@ -34,7 +35,8 @@ async function processNext() {
 
     await sleep(60);
     downloadedVideoIds.add(videoId);
-    outputs.push(`https://storage.reclip.local/${job.id}/${videoId}.mp4`);
+    const base = (config.API_BASE_URL || '').replace(/\/$/, '');
+    outputs.push(`${base}/downloads/file/${job.id}/${i + 1}`);
     job.progress = Math.round(((i + 1) / job.videoIds.length) * 100);
   }
 

@@ -12,10 +12,10 @@ export function StitchSelectedButton({ selectedUrls, ctaUrl }: { selectedUrls: s
 
   const stitch = async () => {
     setError('');
-    setStatus('Stitching selected shorts to CTA...');
+    setStatus('Downloading selected shorts and stitching CTA...');
     try {
       if (ctaUrl) {
-        // When CTA is provided, expect multiple videos back
+        // When CTA is provided, download selected shorts first, then stitch each with the CTA video
         const data = await api<{ videos: Array<{ filename: string; data: string; contentType: string }> }>('/stitch', {
           method: 'POST',
           body: JSON.stringify({
@@ -84,7 +84,7 @@ export function StitchSelectedButton({ selectedUrls, ctaUrl }: { selectedUrls: s
       </label>
       <div>
         <button onClick={stitch} disabled={selectedUrls.length === 0 || !ctaUrl}>
-          Stitch Selected Shorts + CTA ({selectedUrls.length})
+          Download selected shorts and stitch CTA ({selectedUrls.length})
         </button>
         {status ? <span style={{ marginLeft: 10 }}>{status}</span> : null}
       </div>
