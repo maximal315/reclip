@@ -20,31 +20,53 @@ function downloadViaYtDlp(url: string, outputPath: string): Promise<void> {
     // Try yt-dlp binary first
     let process = spawn('yt-dlp', args);
     let binaryFailed = false;
+    let stderr = '';
+    let stdout = '';
+
+    process.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    process.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
 
     process.on('error', () => {
       binaryFailed = true;
       // Fallback to python3 -m yt_dlp
       process = spawn('python3', ['-m', 'yt_dlp', ...args]);
+      let fallbackStderr = '';
+      let fallbackStdout = '';
+
+      process.stderr.on('data', (data) => {
+        fallbackStderr += data.toString();
+      });
+
+      process.stdout.on('data', (data) => {
+        fallbackStdout += data.toString();
+      });
       
-      process.on('exit', (code) => {
+      process.on('exit', (code: any) => {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(`yt-dlp exited with code ${code}`));
+          console.error(`yt-dlp (python fallback) error: ${fallbackStderr}`);
+          reject(new Error(`yt-dlp exited with code ${code}: ${fallbackStderr}`));
         }
       });
       
-      process.on('error', (err) => {
+      process.on('error', (err: any) => {
         reject(new Error(`Failed to run yt-dlp: ${err.message}`));
       });
     });
 
     if (!binaryFailed) {
-      process.on('exit', (code) => {
+      process.on('exit', (code: any) => {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(`yt-dlp exited with code ${code}`));
+          console.error(`yt-dlp error: ${stderr}`);
+          reject(new Error(`yt-dlp exited with code ${code}: ${stderr}`));
         }
       });
     }
