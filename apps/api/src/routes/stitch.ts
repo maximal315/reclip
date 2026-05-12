@@ -46,6 +46,45 @@ function getYouTubeVideoId(url: string): string | null {
   }
 }
 
+function normalizeYouTubeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+
+    if (hostname === 'youtu.be') {
+      const id = parsed.pathname.slice(1).split(/[/?#]/)[0] || '';
+      return id ? `https://www.youtube.com/watch?v=${id}` : url;
+    }
+
+    if (!hostname.endsWith('youtube.com')) {
+      return url;
+    }
+
+    const v = parsed.searchParams.get('v');
+    if (v) {
+      if (v.startsWith('http://') || v.startsWith('https://')) {
+        return normalizeYouTubeUrl(v);
+      }
+      return `https://www.youtube.com/watch?v=${v}`;
+    }
+
+    if (parsed.pathname.startsWith('/shorts/')) {
+      const id = parsed.pathname.split('/shorts/')[1]?.split('/')[0] || '';
+      return id ? `https://www.youtube.com/watch?v=${id}` : url;
+    }
+
+    if (parsed.pathname.startsWith('/v/')) {
+      const id = parsed.pathname.split('/v/')[1]?.split('/')[0] || '';
+      return id ? `https://www.youtube.com/watch?v=${id}` : url;
+    }
+
+    const fallbackId = parsed.pathname.split('/').filter(Boolean).pop() || '';
+    return fallbackId ? `https://www.youtube.com/watch?v=${fallbackId}` : url;
+  } catch {
+    return url;
+  }
+}
+
 export const stitchRouter = Router();
 
 stitchRouter.post('/', async (req, res) => {
@@ -67,24 +106,29 @@ stitchRouter.post('/', async (req, res) => {
     for (const url of urls) {
       if (url.includes('youtube.com') || url.includes('youtu.be')) {
         const requestedVideoId = getYouTubeVideoId(url);
-        const normalizedRequestedUrl = requestedVideoId ? `https://www.youtube.com/watch?v=${requestedVideoId}` : url;
+        const normalizedRequestedUrl = normalizeYouTubeUrl(url);
 
         const video = Array.from(db.videos.values()).find((v) => {
           const storedVideoId = getYouTubeVideoId(v.sourceUrl);
-          if (storedVideoId) {
+          const storedNormalizedUrl = normalizeYouTubeUrl(v.sourceUrl);
+
+          if (requestedVideoId && storedVideoId) {
             return storedVideoId === requestedVideoId;
           }
-          return v.sourceUrl === normalizedRequestedUrl;
+
+          return storedNormalizedUrl === normalizedRequestedUrl || v.sourceUrl === url;
         }) || (requestedVideoId ? db.videos.get(`yt_${requestedVideoId}`) : undefined);
 
         if (!video) {
           const allVideos = Array.from(db.videos.values()).map(v => ({ id: v.id, sourceUrl: v.sourceUrl }));
           console.log('Available videos in DB:', allVideos);
           console.log('Looking for URL:', url);
+          console.log('Normalized request URL:', normalizedRequestedUrl);
           console.log('Requested YouTube ID:', requestedVideoId);
           return res.status(400).json({
             error: `Video not found in database: ${url}`,
             searchedUrl: url,
+            normalizedRequestedUrl,
             requestedVideoId,
             availableVideos: allVideos.length
           });
@@ -94,7 +138,7 @@ stitchRouter.post('/', async (req, res) => {
         const job = {
           id: makeId(),
           type: 'single' as const,
-          videoIds: [],
+          videoIds: [video.id],
           status: 'queued' as const,
           progress: 0,
           outputUrls: [],
