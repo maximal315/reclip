@@ -15,7 +15,15 @@ const schema = z.object({
 
 function downloadViaYtDlp(url: string, outputPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const args = ['-f', 'best[ext=mp4]', '-o', outputPath, url];
+    const args = [
+      '-f', 'best[ext=mp4]',
+      '-o', outputPath,
+      '--socket-timeout', '30',
+      '--retries', '3',
+      '--fragment-retries', '3',
+      '--http-headers', 'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      url
+    ];
     
     // Try yt-dlp binary first
     let process = spawn('yt-dlp', args);
