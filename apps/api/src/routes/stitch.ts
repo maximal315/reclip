@@ -1,8 +1,6 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { spawn } from 'node:child_process';
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
+import type { Video } from '@reclip/shared';
 import { config } from '../lib/config.js';
 import { db } from '../lib/db.js';
 import { makeId } from '../lib/id.js';
@@ -89,79 +87,9 @@ function normalizeYouTubeUrl(url: string): string {
   }
 }
 
-function downloadViaYtDlp(url: string, outputPath: string, cookiesPath?: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const args = [
-      '-f', 'best[ext=mp4]',
-      '-o', outputPath,
-      '--socket-timeout', '30',
-      '--retries', 'infinite',
-      '--fragment-retries', 'infinite',
-      '--sleep-interval', '2',
-      '--max-sleep-interval', '5',
-      ...(cookiesPath ? ['--cookies', cookiesPath] : []),
-      url
-    ];
-    
-    // Try yt-dlp binary first
-    let process = spawn('yt-dlp', args);
-    let binaryFailed = false;
-    let stderr = '';
-    let stdout = '';
-
-    process.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    process.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    process.on('error', () => {
-      binaryFailed = true;
-      // Fallback to python3 -m yt_dlp
-      process = spawn('python3', ['-m', 'yt_dlp', ...args]);
-      let fallbackStderr = '';
-      let fallbackStdout = '';
-
-      process.stderr.on('data', (data) => {
-        fallbackStderr += data.toString();
-      });
-
-      process.stdout.on('data', (data) => {
-        fallbackStdout += data.toString();
-      });
-      
-      process.on('exit', (code: any) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          console.error(`yt-dlp (python fallback) error: ${fallbackStderr}`);
-          reject(new Error(`yt-dlp exited with code ${code}: ${fallbackStderr}`));
-        }
-      });
-      
-      process.on('error', (err: any) => {
-        reject(new Error(`Failed to run yt-dlp: ${err.message}`));
-      });
-    });
-
-    if (!binaryFailed) {
-      process.on('exit', (code: any) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          console.error(`yt-dlp error: ${stderr}`);
-          reject(new Error(`yt-dlp exited with code ${code}: ${stderr}`));
-        }
-      });
-    }
-  });
-}
-
 export const stitchRouter = Router();
 
-stitchRouter.post('/', async (req, res) => {
+stitchRouter.post('/', async (req: Request, res: Response) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
@@ -198,8 +126,8 @@ stitchRouter.post('/', async (req, res) => {
       if (!video) {
         const requestedVideoId = getYouTubeVideoId(url);
         const vid = requestedVideoId ? `yt_${requestedVideoId}` : makeId();
-        const platform = url.includes('tiktok') ? 'tiktok' : 'youtube';
-        const newVideo = {
+        const platform: 'youtube' | 'tiktok' = url.includes('tiktok') ? 'tiktok' : 'youtube';
+        const newVideo: Video = {
           id: vid,
           channelId: '',
           platform,
@@ -213,7 +141,9 @@ stitchRouter.post('/', async (req, res) => {
         video = newVideo;
       }
 
-      selectedVideoIds.push(video.id);
+      if (video) {
+        selectedVideoIds.push(video.id);
+      }
     }
 
     if (selectedVideoIds.length === 0) {
@@ -244,8 +174,8 @@ stitchRouter.post('/', async (req, res) => {
       if (!ctaVideo) {
         const requestedCtaId = getYouTubeVideoId(ctaUrl);
         const vid = requestedCtaId ? `yt_${requestedCtaId}` : makeId();
-        const platform = ctaUrl.includes('tiktok') ? 'tiktok' : 'youtube';
-        const newVideo = {
+        const platform: 'youtube' | 'tiktok' = ctaUrl.includes('tiktok') ? 'tiktok' : 'youtube';
+        const newVideo: Video = {
           id: vid,
           channelId: '',
           platform,
@@ -259,20 +189,22 @@ stitchRouter.post('/', async (req, res) => {
         ctaVideo = newVideo;
       }
 
-      const cjob = {
-        id: makeId(),
-        type: 'single' as const,
-        videoIds: [ctaVideo.id],
-        status: 'queued' as const,
-        progress: 0,
-        outputUrls: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      db.jobs.set(cjob.id, cjob);
-      enqueue(cjob);
-      jobsCreated.push({ id: cjob.id, type: 'cta' });
-      ctaJobId = cjob.id;
+      if (ctaVideo) {
+        const cjob = {
+          id: makeId(),
+          type: 'single' as const,
+          videoIds: [ctaVideo.id],
+          status: 'queued' as const,
+          progress: 0,
+          outputUrls: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        db.jobs.set(cjob.id, cjob);
+        enqueue(cjob);
+        jobsCreated.push({ id: cjob.id, type: 'cta' });
+        ctaJobId = cjob.id;
+      }
     }
 
     // Wait for jobs to finish
@@ -312,25 +244,21 @@ stitchRouter.post('/', async (req, res) => {
     if (ctaOutput) {
       const stitchedBlobs: Buffer[] = [];
       for (const shortUrl of bulkOutputs) {
-        try {
-          console.log(`Stitching: ${shortUrl} + ${ctaOutput}`);
-          const stitchResponse = await fetch(config.FFMPEG_API_URL, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ urls: [shortUrl, ctaOutput], audioUrl })
-          });
+        console.log(`Stitching: ${shortUrl} + ${ctaOutput}`);
+        const stitchResponse = await fetch(config.FFMPEG_API_URL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ urls: [shortUrl, ctaOutput], audioUrl })
+        });
 
-          if (!stitchResponse.ok) {
-            const errText = await stitchResponse.text().catch(() => '');
-            return res.status(stitchResponse.status).json({ error: `Stitch failed: ${stitchResponse.status} ${errText}` });
-          }
-
-          stitchedBlobs.push(Buffer.from(await stitchResponse.arrayBuffer()));
-          console.log('✓ Stitched');
-        } catch (error) {
-          console.error('✗ Stitch failed:', error);
-          return res.status(502).json({ error: 'Stitch API error' });
+        if (!stitchResponse.ok) {
+          const errText = await stitchResponse.text().catch(() => '');
+          return res.status(stitchResponse.status).json({ error: `Stitch failed: ${stitchResponse.status} ${errText}` });
         }
+
+        const buf = Buffer.from(await stitchResponse.arrayBuffer());
+        stitchedBlobs.push(buf);
+        console.log('✓ Stitched');
       }
 
       const stitchedVideos = stitchedBlobs.map((buffer, index) => ({
@@ -342,27 +270,23 @@ stitchRouter.post('/', async (req, res) => {
       return res.json({ videos: stitchedVideos });
     }
 
-    try {
-      console.log(`Stitching ${bulkOutputs.length} videos together`);
-      const response = await fetch(config.FFMPEG_API_URL, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ urls: bulkOutputs, audioUrl })
-      });
+    console.log(`Stitching ${bulkOutputs.length} videos together`);
+    const response = await fetch(config.FFMPEG_API_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ urls: bulkOutputs, audioUrl })
+    });
 
-      if (!response.ok) {
-        const errText = await response.text().catch(() => '');
-        return res.status(response.status).json({ error: `Stitch failed: ${response.status} ${errText}` });
-      }
-
-      const stitchedBuffer = Buffer.from(await response.arrayBuffer());
-      res.setHeader('content-type', response.headers.get('content-type') || 'video/mp4');
-      res.setHeader('content-disposition', 'attachment; filename="stitched.mp4"');
-      return res.status(200).send(stitchedBuffer);
-    } catch (error) {
-      console.error('Stitch API error', error);
-      return res.status(502).json({ error: 'Stitch API unavailable' });
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      return res.status(response.status).json({ error: `Stitch failed: ${response.status} ${errText}` });
     }
+
+    const stitchedBuffer = Buffer.from(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type') || 'video/mp4';
+    res.setHeader('content-type', contentType);
+    res.setHeader('content-disposition', 'attachment; filename="stitched.mp4"');
+    return res.status(200).send(stitchedBuffer);
   } catch (error) {
     console.error('Stitch endpoint error', error);
     return res.status(500).json({ error: 'Internal server error' });
