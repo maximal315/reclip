@@ -28,9 +28,8 @@ function newJob(type: JobType, videoIds: string[]): DownloadJob {
 }
 
 export const downloadsRouter = Router();
-downloadsRouter.use(requireTermsAccepted);
 
-downloadsRouter.post('/single', (req, res) => {
+downloadsRouter.post('/single', requireTermsAccepted, (req, res) => {
   const parsed = singleSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
@@ -50,7 +49,7 @@ downloadsRouter.post('/single', (req, res) => {
   return res.status(202).json({ jobId: job.id });
 });
 
-downloadsRouter.post('/bulk', (req, res) => {
+downloadsRouter.post('/bulk', requireTermsAccepted, (req, res) => {
   const parsed = bulkSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
@@ -76,15 +75,6 @@ downloadsRouter.post('/bulk', (req, res) => {
   return res.status(202).json({ jobId: job.id, queued: filtered.length });
 });
 
-downloadsRouter.get('/:jobId', (req, res) => {
-  const job = db.jobs.get(req.params.jobId);
-  if (!job) {
-    return res.status(404).json({ error: 'Job not found' });
-  }
-
-  return res.json({ job });
-});
-
 downloadsRouter.get('/file/:jobId/:index', (req, res) => {
   const { jobId, index } = req.params;
   const filePath = path.join('/tmp', `${jobId}_${index}.mp4`);
@@ -92,4 +82,13 @@ downloadsRouter.get('/file/:jobId/:index', (req, res) => {
     return res.status(404).send('File not found');
   }
   res.sendFile(filePath);
+});
+
+downloadsRouter.get('/:jobId', requireTermsAccepted, (req, res) => {
+  const job = db.jobs.get(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+
+  return res.json({ job });
 });
