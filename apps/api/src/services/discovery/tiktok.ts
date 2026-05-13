@@ -15,24 +15,29 @@ interface YtDlpEntry {
   url?: string;
 }
 
-function normalizeTikTokUrl(handleOrUrl: string): string {
+function extractHandle(handleOrUrl: string): string {
   const value = handleOrUrl.trim();
+  // If it's a full URL, try to extract the @username part
   if (value.startsWith('http://') || value.startsWith('https://')) {
     try {
       const url = new URL(value);
-      // Clean up any duplicate or malformed paths
-      let pathname = url.pathname;
-      // Remove duplicate http:// or https:// in path
-      pathname = pathname.replace(/(https?:\/\/)[^\/]*\//g, '');
-      url.pathname = pathname;
-      return url.toString();
+      // TikTok URLs look like https://www.tiktok.com/@username/... or https://www.tiktok.com/@username
+      const parts = url.pathname.split('/');
+      const atIndex = parts.findIndex(p => p.startsWith('@'));
+      if (atIndex !== -1) {
+        return parts[atIndex].substring(1); // remove leading @
+      }
     } catch {
-      return value; // fallback if URL parsing fails
+      // fall through to treat as raw handle
     }
   }
-  
-  const cleanHandle = value.replace(/^@/, '');
-  return `https://www.tiktok.com/@${cleanHandle}`;
+  // Plain handle (maybe with @ prefix)
+  return value.replace(/^@/, '');
+}
+
+function normalizeTikTokUrl(handleOrUrl: string): string {
+  const handle = extractHandle(handleOrUrl);
+  return `https://www.tiktok.com/@${handle}`;
 }
 
 async function fetchTikTokEntries(url: string): Promise<YtDlpEntry[]> {
@@ -66,19 +71,7 @@ export async function fetchTikTokVideos(channelId: string, handle: string, limit
         continue;
       }
       
-      let sourceUrl = entry.webpage_url || (entry.url ? `https://www.tiktok.com/@${handle.replace('@', '')}/video/${entry.url}` : `https://www.tiktok.com/@${handle.replace('@', '')}/video/${entry.id}`);
-      
-      // Clean up URL to prevent duplicates
-      try {
-        const parsedUrl = new URL(sourceUrl);
-        // Remove duplicate http:// or https:// in path
-        let pathname = parsedUrl.pathname;
-        pathname = pathname.replace(/(https?:\/\/)[^\/]*\//g, '');
-        parsedUrl.pathname = pathname;
-        sourceUrl = parsedUrl.toString();
-      } catch {
-        // Keep original URL if parsing fails
-      }
+      let sourceUrl = entry.webpage_url || entry.url || `https://www.tiktok.com/@${handle.replace('@', '')}/video/${entry.id}`;
       
       const publishedAt = 
         typeof entry.timestamp === 'number'
