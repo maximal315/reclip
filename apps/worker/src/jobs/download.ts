@@ -3,17 +3,48 @@ import type { DownloadJob, Video } from '@reclip/shared';
 
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000';
 
-function runFfmpeg(input: string, output: string): Promise<void> {
+function downloadSource(input: string, output: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn('ffmpeg', ['-y', '-i', input, '-c', 'copy', output]);
-    ffmpeg.on('exit', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`ffmpeg exited with code ${code}`));
-      }
+    const args = ['--js-runtimes', 'deno', '-f', 'best[ext=mp4]/best', '-o', output, input];
+    let process = spawn('yt-dlp', args);
+    let binaryFailed = false;
+    let stderr = '';
+
+    process.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
     });
-    ffmpeg.on('error', reject);
+
+    process.on('error', () => {
+      binaryFailed = true;
+      process = spawn('python3', ['-m', 'yt_dlp', ...args]);
+      let fallbackStderr = '';
+
+      process.stderr.on('data', (data: Buffer) => {
+        fallbackStderr += data.toString();
+      });
+
+      process.on('exit', (code: number | null) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`yt-dlp exited with code ${code}: ${fallbackStderr}`));
+        }
+      });
+
+      process.on('error', (err: Error) => {
+        reject(new Error(`Failed to run yt-dlp: ${err.message}`));
+      });
+    });
+
+    if (!binaryFailed) {
+      process.on('exit', (code: number | null) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`yt-dlp exited with code ${code}: ${stderr}`));
+        }
+      });
+    }
   });
 }
 
@@ -26,12 +57,12 @@ export async function processDownloadJob(job: DownloadJob, videos: Video[]): Pro
     const out = `/tmp/${job.id}_${i + 1}.mp4`;
 
     try {
-      await runFfmpeg(video.sourceUrl, out);
+      await downloadSource(video.sourceUrl, out);
       outputs.push(out);
       next.progress = Math.round(((i + 1) / videos.length) * 100);
-    } catch {
+    } catch (error) {
       next.status = 'failed';
-      next.error = `Failed to process ${video.id}`;
+      next.error = `Failed to process ${video.id}: ${error instanceof Error ? error.message : 'unknown'}`;
       next.updatedAt = new Date().toISOString();
       return next;
     }

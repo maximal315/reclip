@@ -12,7 +12,7 @@ async function sleep(ms: number): Promise<void> {
 
 async function downloadVideo(url: string, outputPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const args = ['-f', 'best[ext=mp4]', '-o', outputPath, url];
+    const args = ['--js-runtimes', 'deno', '-f', 'best[ext=mp4]/best', '-o', outputPath, url];
     let process = spawn('yt-dlp', args);
     let binaryFailed = false;
     let stderr = '';
