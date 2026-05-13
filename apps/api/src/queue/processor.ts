@@ -108,6 +108,7 @@ async function processNext() {
   job.outputUrls = outputs.map((_, i) => `${base}/downloads/file/${job.id}/${i + 1}`);
   job.updatedAt = new Date().toISOString();
   db.jobs.set(job.id, job);
+}
 
 export function startQueueProcessor(): NodeJS.Timeout {
   return setInterval(() => {
