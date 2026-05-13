@@ -18,7 +18,17 @@ interface YtDlpEntry {
 function normalizeTikTokUrl(handleOrUrl: string): string {
   const value = handleOrUrl.trim();
   if (value.startsWith('http://') || value.startsWith('https://')) {
-    return value;
+    try {
+      const url = new URL(value);
+      // Clean up any duplicate or malformed paths
+      let pathname = url.pathname;
+      // Remove duplicate http:// or https:// in path
+      pathname = pathname.replace(/(https?:\/\/)[^\/]*\//g, '');
+      url.pathname = pathname;
+      return url.toString();
+    } catch {
+      return value; // fallback if URL parsing fails
+    }
   }
   
   const cleanHandle = value.replace(/^@/, '');
@@ -56,7 +66,20 @@ export async function fetchTikTokVideos(channelId: string, handle: string, limit
         continue;
       }
       
-      const sourceUrl = entry.webpage_url || (entry.url ? `https://www.tiktok.com/@${handle.replace('@', '')}/video/${entry.url}` : `https://www.tiktok.com/@${handle.replace('@', '')}/video/${entry.id}`);
+      let sourceUrl = entry.webpage_url || (entry.url ? `https://www.tiktok.com/@${handle.replace('@', '')}/video/${entry.url}` : `https://www.tiktok.com/@${handle.replace('@', '')}/video/${entry.id}`);
+      
+      // Clean up URL to prevent duplicates
+      try {
+        const parsedUrl = new URL(sourceUrl);
+        // Remove duplicate http:// or https:// in path
+        let pathname = parsedUrl.pathname;
+        pathname = pathname.replace(/(https?:\/\/)[^\/]*\//g, '');
+        parsedUrl.pathname = pathname;
+        sourceUrl = parsedUrl.toString();
+      } catch {
+        // Keep original URL if parsing fails
+      }
+      
       const publishedAt = 
         typeof entry.timestamp === 'number'
           ? new Date(entry.timestamp * 1000).toISOString()
