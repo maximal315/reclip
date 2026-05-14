@@ -1,5 +1,5 @@
 # ────────────────────────────────────────────────────────────────
-#  Builder stage - compile TS, install dev deps, install yt-dlp
+#  Builder stage – compile TS, install dev deps, install yt‑dlp
 # ────────────────────────────────────────────────────────────────
 FROM node:24-bullseye-slim AS builder
 
@@ -7,23 +7,20 @@ FROM node:24-bullseye-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
-    python3-pip \
-    # git is handy for npm ci when a lockfile references a git URL
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- yt‑dlp ----------------------------------------------------
-# Debian 12 marks the system Python environment as "externally managed".
-# Using the flag --allow-existing bypasses the PEP 668 guard.
-# Instead, install yt-dlp normally into the Python environment.
-RUN python3 -m pip install --no-cache-dir yt-dlp
+# ---- yt‑dlp (static binary – no pip, no venv, no PEP 668 issues) ----
+RUN curl -sL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+    -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
 
 # ---- Work directory -------------------------------------------------
 WORKDIR /app
 
 # ---- Copy only lockfiles first (speeds up caching) ------------------
 COPY package.json package-lock.json ./
-# In a workspace you also have a root lock for the shared packages
 # If you use a `pnpm-lock.yaml` or `yarn.lock` adjust accordingly
 
 # ---- Copy the whole source tree ------------------------------------
@@ -37,27 +34,28 @@ RUN npm run build -w @reclip/shared && \
     npm run build -w @reclip/api
 
 # --------------------------------------------------------------------
-#  Runtime stage - only the things needed to *run* the API
+#  Runtime stage – only the things needed to *run* the API
 # --------------------------------------------------------------------
 FROM node:24-bullseye-slim
 
 ENV NODE_ENV=production
 
-# ---- Runtime system deps (ffmpeg & Python for the yt-dlp binary) ---
+# ---- Runtime system deps (ffmpeg & Python for the yt‑dlp binary) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
-    python3-pip \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- Pull the Python site-packages (yt-dlp) from the builder ----------
-COPY --from=builder /usr/local /usr/local
+# ---- yt‑dlp (same static binary in the runtime image) -------------
+RUN curl -sL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+    -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
 
 # ---- Application code ------------------------------------------------
 WORKDIR /app
 
 # Only copy the files the API actually needs at runtime.
-# (dist folder, package.json, node_modules, and the shared lib)
 COPY --from=builder /app/apps/api/dist   ./apps/api/dist
 COPY --from=builder /app/apps/api/src    ./apps/api/src
 COPY --from=builder /app/apps/api/package*.json ./apps/api/
