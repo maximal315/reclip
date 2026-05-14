@@ -7,6 +7,7 @@ FROM node:24-bullseye-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
+    python3-venv \
     git \
     curl \
     && rm -rf /var/lib/apt/lists/*
