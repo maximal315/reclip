@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ---- yt‑dlp ----------------------------------------------------
 # Debian 12 marks the system Python environment as "externally managed".
 # Using the flag --allow-existing bypasses the PEP 668 guard.
-RUN python3 -m pip install --no-cache-dir --allow-existing yt-dlp
+# Instead, install yt-dlp normally into the Python environment.
+RUN python3 -m pip install --no-cache-dir yt-dlp
 
 # ---- Work directory -------------------------------------------------
 WORKDIR /app
