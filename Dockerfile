@@ -11,10 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- yt‑dlp (static binary – no pip, no venv, no PEP 668 issues) ----
-RUN curl -sL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-    -o /usr/local/bin/yt-dlp && \
-    chmod a+rx /usr/local/bin/yt-dlp
+# ---- yt‑dlp (virtualenv avoids externally-managed‑environment) ----
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir yt-dlp
 
 # ---- Work directory -------------------------------------------------
 WORKDIR /app
@@ -39,6 +38,7 @@ RUN npm run build -w @reclip/shared && \
 FROM node:24-bullseye-slim
 
 ENV NODE_ENV=production
+ENV PORT=4000
 
 # ---- Runtime system deps (ffmpeg & Python for the yt‑dlp binary) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -47,10 +47,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- yt‑dlp (same static binary in the runtime image) -------------
-RUN curl -sL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-    -o /usr/local/bin/yt-dlp && \
-    chmod a+rx /usr/local/bin/yt-dlp
+# ---- yt‑dlp (same virtual environment in the runtime image) --------
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # ---- Application code ------------------------------------------------
 WORKDIR /app
@@ -66,7 +65,7 @@ COPY --from=builder /app/node_modules  ./node_modules
 COPY --from=builder /app/package.json  ./package.json
 COPY --from=builder /app/package-lock.json ./package-lock.json
 
-# ---- Expose the port (Render injects $PORT, default 4000) ----------
+# ---- Expose the port (Render provides $PORT, default 4000) ----------
 EXPOSE ${PORT:-4000}
 
 # ---- Entrypoint ------------------------------------------------------
