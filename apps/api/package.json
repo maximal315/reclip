@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "prestart": "(python3 -m pip install -q yt-dlp || python -m pip install -q yt-dlp) && npm run build",
-    "start": "node dist/index.js"
+    "prestart": "npm run build",
+    "start": "node apps/api/dist/index.js"
   },
   "dependencies": {
     "@reclip/shared": "0.1.0",

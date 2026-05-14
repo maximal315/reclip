@@ -23,9 +23,7 @@ WORKDIR /app
 # ---- Copy only lockfiles first (speeds up caching) ------------------
 COPY package.json package-lock.json ./
 # In a workspace you also have a root lock for the shared packages
-COPY .npmrc ./
-# If you use a `pnpm-lock.yaml` or `yarn.lock` replace the line above
-# with the appropriate file(s).
+# If you use a `pnpm-lock.yaml` or `yarn.lock` adjust accordingly
 
 # ---- Copy the whole source tree ------------------------------------
 COPY . .
@@ -73,5 +71,4 @@ COPY --from=builder /app/package-lock.json ./package-lock.json
 EXPOSE ${PORT:-4000}
 
 # ---- Entrypoint ------------------------------------------------------
-#The compiled entry point lives at apps/api/dist/index.js
-CMD ["node", "dist/index.js"]
+CMD ["node", "apps/api/dist/index.js"]
