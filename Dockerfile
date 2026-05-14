@@ -1,5 +1,5 @@
 # ────────────────────────────────────────────────────────────────
-#  Builder stage – compile TS, install dev deps, install yt‑dlp
+#  Builder stage - compile TS, install dev deps, install yt-dlp
 # ────────────────────────────────────────────────────────────────
 FROM node:24-bullseye-slim AS builder
 
@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- yt‑dlp ----------------------------------------------------
-# Debian 12 marks the system Python environment as "externally managed".
-# Using the flag --break-system-packages bypasses the PEP 668 guard.
-RUN python3 -m pip install --no-cache-dir --break-system-packages yt-dlp
+# Debian 12 marks the system Python environment as "externally managed".
+# Using the flag --allow-existing bypasses the PEP 668 guard.
+RUN python3 -m pip install --no-cache-dir --allow-existing yt-dlp
 
 # ---- Work directory -------------------------------------------------
 WORKDIR /app
@@ -36,20 +36,20 @@ RUN npm run build -w @reclip/shared && \
     npm run build -w @reclip/api
 
 # --------------------------------------------------------------------
-#  Runtime stage – only the things needed to *run* the API
+#  Runtime stage - only the things needed to *run* the API
 # --------------------------------------------------------------------
 FROM node:24-bullseye-slim
 
 ENV NODE_ENV=production
 
-# ---- Runtime system deps (ffmpeg & Python for the yt‑dlp binary) ---
+# ---- Runtime system deps (ffmpeg & Python for the yt-dlp binary) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- Pull the Python site‑packages (yt‑dlp) from the builder ----------
+# ---- Pull the Python site-packages (yt-dlp) from the builder ----------
 COPY --from=builder /usr/local /usr/local
 
 # ---- Application code ------------------------------------------------
