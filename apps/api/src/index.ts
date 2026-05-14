@@ -33,7 +33,7 @@ const webOrigins = config.WEB_ORIGIN.split(',')
   .map(normalizeOrigin)
   .filter((origin): origin is string => Boolean(origin));
 
-app.use(cors({ origin: webOrigins.length > 1 ? webOrigins : webOrigins[0] || false }));
+app.use(cors({ origin: 'https://moonlit-donut-e906dc.netlify.app', credentials: true }));
 app.use(express.json());
 app.use(simpleRateLimit(120));
 
