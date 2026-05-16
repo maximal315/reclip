@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "skills": {
+    "git": {
+      "version": "1.0.8",
+      "installedAt": 1778712449903
+    },
+    "agent-browser-clawdbot": {
+      "version": "0.1.0",
+      "installedAt": 1778713362056
+    }
+  }
+}
